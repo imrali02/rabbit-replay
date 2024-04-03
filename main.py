@@ -1,12 +1,15 @@
 from typing import Final
 import os
+import discord
 from dotenv import load_dotenv
 from discord import Intents, Client, Message, VoiceClient
 import youtube_dl
-import discord
+import asyncio
+import time
 
 # STEP 0: LOAD OUR TOKEN FROM SOMEWHERE SAFE
 load_dotenv()
+TOKEN: Final[str] = os.getenv('DISCORD_TOKEN')
 
 # STEP 1: BOT SETUP
 intents: Intents = Intents.default()
@@ -25,18 +28,29 @@ ytdl_format_options = {
 
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 
-# Global variable to keep track of the voice client
+# Global variables
 voice_client: VoiceClient = None
+last_activity_time = None
 
-# STEP 3: HANDLING THE STARTUP FOR OUR BOT
-@client.event
-async def on_ready() -> None:
-    print(f'{client.user} is now running!')
+# STEP 3: MAIN ENTRY POINT
+def main() -> None:
+    client.run(token=TOKEN)
+
+# Function to check idle time and disconnect if necessary
+async def check_idle_time():
+    global voice_client, last_activity_time
+
+    while True:
+        await asyncio.sleep(300)  # Check every 5 minutes
+
+        if voice_client and voice_client.is_connected():
+            if last_activity_time and (time.time() - last_activity_time) > 300:
+                await voice_client.disconnect()
 
 # STEP 4: EVENT LISTENER
 @client.event
 async def on_message(message: Message) -> None:
-    global voice_client
+    global voice_client, last_activity_time
 
     if message.author == client.user:
         return
@@ -61,9 +75,9 @@ async def on_message(message: Message) -> None:
         else:
             await message.channel.send("You need to be in a voice channel to use this command.")
 
-# STEP 5: MAIN ENTRY POINT
-def main() -> None:
-    client.run(os.getenv('DISCORD_TOKEN'))
+        # Update last activity time
+        last_activity_time = time.time()
 
 if __name__ == '__main__':
+    asyncio.ensure_future(check_idle_time())  # Start the idle timer
     main()
