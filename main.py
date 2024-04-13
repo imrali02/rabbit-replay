@@ -78,6 +78,13 @@ async def on_message(message: Message) -> None:
         # Update last activity time
         last_activity_time = time.time()
 
+    elif message.content.startswith('!stop'):
+        if voice_client and voice_client.is_playing():
+            voice_client.stop()
+            await message.channel.send("Playback stopped.")
+        else:
+            await message.channel.send("No video is currently playing.")
+
 if __name__ == '__main__':
     asyncio.ensure_future(check_idle_time())  # Start the idle timer
     main()
