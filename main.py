@@ -7,7 +7,7 @@ import youtube_dl
 import asyncio
 import time
 
-# STEP 0: LOAD OUR TOKEN FROM SOMEWHERE SAFE
+# STEP 0: LOAD OUR TOKEN FROM SOMEWHERE SAFE - testing git pull
 load_dotenv()
 TOKEN: Final[str] = os.getenv('DISCORD_TOKEN')
 
