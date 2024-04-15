@@ -31,6 +31,7 @@ ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 # Global variables
 voice_client: VoiceClient = None
 last_activity_time = None
+goon_users = set()
 
 # STEP 3: MAIN ENTRY POINT
 def main() -> None:
@@ -50,7 +51,7 @@ async def check_idle_time():
 # STEP 4: EVENT LISTENER
 @client.event
 async def on_message(message: Message) -> None:
-    global voice_client, last_activity_time
+    global voice_client, last_activity_time, goon_users
 
     if message.author == client.user:
         return
@@ -84,6 +85,15 @@ async def on_message(message: Message) -> None:
             await message.channel.send("Playback stopped.")
         else:
             await message.channel.send("No video is currently playing.")
+
+    elif message.content.startswith('!goon'):
+        if message.author.id not in goon_users:
+            goon_users.add(message.author.id)
+            await message.channel.send(f"{message.author.mention} has joined the gooning squad! {len(goon_users)}/3")
+
+            if len(goon_users) == 3:
+                await message.channel.send("It's gooning time!")
+                goon_users.clear()
 
 if __name__ == '__main__':
     asyncio.ensure_future(check_idle_time())  # Start the idle timer
