@@ -109,5 +109,6 @@ async def on_message(message: Message) -> None:
                 trigger_buzzers_for_all_devices(goon_users)
                 goon_users.clear()
 
-# asyncio.ensure_future(check_idle_time())  # Start the idle timer
-main()
+if __name__ == '__main__':
+    asyncio.ensure_future(check_idle_time())  # Start the idle timer
+    main()
