@@ -35,7 +35,7 @@ last_activity_time = None
 goon_users = set()
 
 # STEP 3: MAIN ENTRY POINT
-def main() -> None:
+def main():
     client.run(token=TOKEN)
 
 # Function to check idle time and disconnect if necessary
