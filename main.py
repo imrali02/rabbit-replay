@@ -110,5 +110,5 @@ async def on_message(message: Message) -> None:
                 goon_users.clear()
 
 if __name__ == '__main__':
-    asyncio.ensure_future(check_idle_time())  # Start the idle timer
+    # asyncio.ensure_future(check_idle_time())  # Start the idle timer
     main()
