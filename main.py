@@ -35,7 +35,7 @@ last_activity_time = None
 goon_users = set()
 
 # STEP 3: MAIN ENTRY POINT
-def main():
+def main() -> None:
     client.run(token=TOKEN)
 
 # Function to check idle time and disconnect if necessary
@@ -109,6 +109,5 @@ async def on_message(message: Message) -> None:
                 trigger_buzzers_for_all_devices(goon_users)
                 goon_users.clear()
 
-if __name__ == '__main__':
-    # asyncio.ensure_future(check_idle_time())  # Start the idle timer
-    main()
+# asyncio.ensure_future(check_idle_time())  # Start the idle timer
+main()
