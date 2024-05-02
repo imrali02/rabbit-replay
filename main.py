@@ -6,6 +6,7 @@ from discord import Intents, Client, Message, VoiceClient
 import youtube_dl
 import asyncio
 import time
+import paho.mqtt.publish as publish
 
 # STEP 0: LOAD OUR TOKEN FROM SOMEWHERE SAFE - testing git pull
 load_dotenv()
@@ -47,6 +48,18 @@ async def check_idle_time():
         if voice_client and voice_client.is_connected():
             if last_activity_time and (time.time() - last_activity_time) > 300:
                 await voice_client.disconnect()
+
+# Function to publish message to MQTT broker
+def trigger_buzzer(device_id):
+    # Replace MQTT broker address, topic, and message as needed
+    publish.single("goon", "goontime", hostname="")
+
+# Trigger buzzers for all non-gooners
+def trigger_buzzers_for_all_devices(goon_users):
+    print(goon_users)
+    device_ids = ["scrounch", "goontern", "stinkfish", "gon", "frozenravager"]  # Add all device IDs
+    for device_id in device_ids:
+        trigger_buzzer(device_id)
 
 # STEP 4: EVENT LISTENER
 @client.event
@@ -93,6 +106,7 @@ async def on_message(message: Message) -> None:
 
             if len(goon_users) == 3:
                 await message.channel.send("It's gooning time!")
+                trigger_buzzers_for_all_devices(goon_users)
                 goon_users.clear()
 
 if __name__ == '__main__':
