@@ -3,7 +3,7 @@ import os
 import discord
 from dotenv import load_dotenv
 from discord import Intents, Client, Message, VoiceClient
-import youtube_dl
+from yt_dlp import YoutubeDL
 import asyncio
 import time
 import paho.mqtt.publish as publish
@@ -27,7 +27,7 @@ ytdl_format_options = {
     }],
 }
 
-ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
+ytdl = YoutubeDL(ytdl_format_options)
 
 # Global variables
 voice_client: VoiceClient = None
