@@ -43,7 +43,7 @@ voice_client: VoiceClient = None
 last_activity_time = None
 goon_users = set()
 
-# STEP 3: MAIN ENTRY POINT
+# MAIN ENTRY POINT
 def main() -> None:
     client.run(token=TOKEN)
 
@@ -69,8 +69,8 @@ def trigger_buzzers_for_all_devices(goon_users):
     for user_id, device_id in user_dict.items():
         if user_id not in goon_users:
             trigger_buzzer(device_id)
-            
-# STEP 4: EVENT LISTENER
+
+# EVENT LISTENER
 @client.event
 async def on_message(message: Message) -> None:
     global voice_client, last_activity_time, goon_users
