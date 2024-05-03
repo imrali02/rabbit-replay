@@ -8,16 +8,16 @@ import asyncio
 import time
 import paho.mqtt.publish as publish
 
-# STEP 0: LOAD OUR TOKEN FROM SOMEWHERE SAFE - testing git pull
+# LOAD OUR TOKEN FROM SOMEWHERE SAFE - testing git pull
 load_dotenv()
 TOKEN: Final[str] = os.getenv('DISCORD_TOKEN')
 
-# STEP 1: BOT SETUP
+# BOT SETUP
 intents: Intents = Intents.default()
 intents.message_content = True
 client: Client = Client(intents=intents)
 
-# STEP 2: YTDL OPTIONS
+# YTDL OPTIONS
 ytdl_format_options = {
     'format': 'bestaudio/best',
     'postprocessors': [{
@@ -25,6 +25,15 @@ ytdl_format_options = {
         'preferredcodec': 'mp3',
         'preferredquality': '192',
     }],
+}
+
+# USER DICTIONARY
+user_dict = {
+    323527384588353557: "scrounch",
+    518899324177088513: "goontern",
+    262065524890927105: "stinkfish",
+    299329028421189632: "frozenravager",
+    262409000929198080: "goonerobama"
 }
 
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
@@ -57,11 +66,10 @@ def trigger_buzzer(device_id):
 
 # Trigger buzzers for all non-gooners
 def trigger_buzzers_for_all_devices(goon_users):
-    print(goon_users)
-    device_ids = ["scrounch", "goontern", "stinkfish", "frozenravager", "goonerobama"]  # Add all device IDs
-    for device_id in device_ids:
-        trigger_buzzer(device_id)
-
+    for user_id, device_id in user_dict.items():
+        if user_id not in goon_users:
+            trigger_buzzer(device_id)
+            
 # STEP 4: EVENT LISTENER
 @client.event
 async def on_message(message: Message) -> None:
