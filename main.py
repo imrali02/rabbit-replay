@@ -51,13 +51,13 @@ async def check_idle_time():
 
 # Function to publish message to MQTT broker
 def trigger_buzzer(device_id):
-    # Replace MQTT broker address, topic, and message as needed
-    publish.single("goon", "goontime", hostname="")
+    # send message with device_id to MQTT broker
+    publish.single("goon", "goontime", hostname="167.99.49.73", port=1883, client_id=device_id)
 
 # Trigger buzzers for all non-gooners
 def trigger_buzzers_for_all_devices(goon_users):
     print(goon_users)
-    device_ids = ["scrounch", "goontern", "stinkfish", "gon", "frozenravager"]  # Add all device IDs
+    device_ids = ["scrounch", "goontern", "stinkfish", "frozenravager", "goonerobama"]  # Add all device IDs
     for device_id in device_ids:
         trigger_buzzer(device_id)
 
@@ -104,7 +104,7 @@ async def on_message(message: Message) -> None:
             goon_users.add(message.author.id)
             await message.channel.send(f"{message.author.mention} has joined the gooning squad! {len(goon_users)}/3")
 
-            if len(goon_users) == 3:
+            if len(goon_users) == 2:
                 await message.channel.send("It's gooning time!")
                 trigger_buzzers_for_all_devices(goon_users)
                 goon_users.clear()
