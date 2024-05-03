@@ -61,8 +61,9 @@ async def check_idle_time():
 # Function to publish message to MQTT broker
 def trigger_buzzer(device_id):
     # send message with device_id to MQTT broker
+    mqtt_password = os.getenv('MQTT_PASSWORD')
     publish.single("goon", device_id, hostname="167.99.49.73", port=1883, auth = {'username':"goon_user",
-         'password': "kurapikaisnowdrowning"})
+         'password': mqtt_password})
 
 # Trigger buzzers for all non-gooners
 def trigger_buzzers_for_all_devices(goon_users):
