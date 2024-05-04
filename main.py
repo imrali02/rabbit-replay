@@ -11,6 +11,7 @@ import paho.mqtt.publish as publish
 # LOAD OUR TOKEN FROM SOMEWHERE SAFE - testing git pull
 load_dotenv()
 TOKEN: Final[str] = os.getenv('DISCORD_TOKEN')
+MQTT_PASSWORD: Final[str] = os.getenv('MQTT_PASSWORD')
 
 # BOT SETUP
 intents: Intents = Intents.default()
@@ -61,9 +62,9 @@ async def check_idle_time():
 # Function to publish message to MQTT broker
 def trigger_buzzer(device_id):
     # send message with device_id to MQTT broker
-    mqtt_password = os.getenv('MQTT_PASSWORD')
+    mqtt_password = MQTT_PASSWORD
     publish.single("goon", device_id, hostname="167.99.49.73", port=1883, auth = {'username':"goon_user",
-         'password': mqtt_password})
+         'password':f"{mqtt_password}"})
 
 # Trigger buzzers for all non-gooners
 def trigger_buzzers_for_all_devices(goon_users):
