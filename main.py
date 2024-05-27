@@ -129,5 +129,8 @@ async def on_message(message: Message) -> None:
                 goon_users.clear()
 
 if __name__ == '__main__':
-    asyncio.ensure_future(send_not_gooning_message())  # Start the "not gooning" message sender
-    main()
+    loop = asyncio.get_event_loop()  # Get the event loop
+    loop.run_until_complete(asyncio.gather(
+        send_not_gooning_message(),  # Start the "not gooning" message sender
+        main()
+    ))
