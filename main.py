@@ -43,28 +43,36 @@ ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 voice_client: VoiceClient = None
 last_activity_time = None
 goon_users = set()
+is_gooning = False
 
 # MAIN ENTRY POINT
 def main() -> None:
     client.run(token=TOKEN)
 
-# Function to check idle time and disconnect if necessary
-async def check_idle_time():
-    global voice_client, last_activity_time
-
-    while True:
-        await asyncio.sleep(300)  # Check every 5 minutes
-
-        if voice_client and voice_client.is_connected():
-            if last_activity_time and (time.time() - last_activity_time) > 300:
-                await voice_client.disconnect()
-
 # Function to publish message to MQTT broker
 def trigger_buzzer(device_id):
+    global is_gooning
+    is_gooning = True  # Set is_gooning to True
+
     # send message with device_id to MQTT broker
     mqtt_password = MQTT_PASSWORD
     publish.single("goon", device_id, hostname="167.99.49.73", port=1883, auth = {'username':"goon_user",
          'password':"kurapikaisnowdrowning"})
+
+    is_gooning = False  # Set is_gooning back to False
+
+# New coroutine to send "not gooning" message
+async def send_not_gooning_message():
+    global is_gooning
+
+    while True:
+        await asyncio.sleep(5)  # Wait for 5 seconds
+
+        if not is_gooning:
+            # send "not gooning" message to MQTT broker
+            mqtt_password = MQTT_PASSWORD
+            publish.single("goon", "not gooning", hostname="167.99.49.73", port=1883, auth = {'username':"goon_user",
+                 'password':"kurapikaisnowdrowning"})
 
 # Trigger buzzers for all non-gooners
 def trigger_buzzers_for_all_devices(goon_users):
@@ -121,5 +129,5 @@ async def on_message(message: Message) -> None:
                 goon_users.clear()
 
 if __name__ == '__main__':
-    asyncio.ensure_future(check_idle_time())  # Start the idle timer
+    asyncio.ensure_future(send_not_gooning_message())  # Start the "not gooning" message sender
     main()
