@@ -4,7 +4,7 @@ import discord
 from dotenv import load_dotenv
 from discord import Intents, Client, Message, VoiceClient
 import youtube_dl
-import asyncio
+import threading
 import time
 import paho.mqtt.publish as publish
 
@@ -57,23 +57,23 @@ def trigger_buzzer(device_id):
     # send message with device_id to MQTT broker
     mqtt_password = MQTT_PASSWORD
     publish.single("goon", device_id, hostname="167.99.49.73", port=1883, auth = {'username':"goon_user",
-         'password':"kurapikaisnowdrowning"})
+        password:"kurapikaisnowdrowning"})
 
     is_gooning = False  # Set is_gooning back to False
 
-# New coroutine to send "not gooning" message
-async def send_not_gooning_message():
+# New function to send "not gooning" message
+def send_not_gooning_message():
     global is_gooning
 
     while True:
-        await asyncio.sleep(5)  # Wait for 5 seconds
+        time.sleep(5)  # Wait for 5 seconds
 
         if not is_gooning:
             # send "not gooning" message to MQTT broker
             mqtt_password = MQTT_PASSWORD
             publish.single("goon", "not gooning", hostname="167.99.49.73", port=1883, auth = {'username':"goon_user",
                  'password':"kurapikaisnowdrowning"})
-
+            
 # Trigger buzzers for all non-gooners
 def trigger_buzzers_for_all_devices(goon_users):
     for user_id, device_id in user_dict.items():
@@ -129,8 +129,5 @@ async def on_message(message: Message) -> None:
                 goon_users.clear()
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()  # Get the event loop
-    loop.run_until_complete(asyncio.gather(
-        send_not_gooning_message(),  # Start the "not gooning" message sender
-        main()
-    ))
+    threading.Thread(target=send_not_gooning_message).start()  # Start the "not gooning" message sender in a new thread
+    main()
