@@ -56,8 +56,7 @@ def trigger_buzzer(device_id):
 
     # send message with device_id to MQTT broker
     mqtt_password = MQTT_PASSWORD
-    publish.single("goon", device_id, hostname="167.99.49.73", port=1883, auth = {'username':"goon_user",
-        password:"kurapikaisnowdrowning"})
+    publish.single("goon", device_id, hostname="167.99.49.73", port=1883, auth = {'username':"goon_user", 'password':"kurapikaisnowdrowning"})
 
     is_gooning = False  # Set is_gooning back to False
 
