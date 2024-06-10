@@ -117,6 +117,14 @@ async def on_message(message: Message) -> None:
         else:
             await message.channel.send("No video is currently playing.")
 
+    elif message.content.startswith('!leave'):
+        if voice_client:
+            await voice_client.disconnect()
+            voice_client = None
+            await message.channel.send("Left the voice channel.")
+        else:
+            await message.channel.send("I'm not in a voice channel.")
+
     elif message.content.startswith('!goon'):
         if message.author.id not in goon_users:
             goon_users.add(message.author.id)
