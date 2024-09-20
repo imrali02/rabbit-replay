@@ -18,6 +18,8 @@ intents: Intents = Intents.default()
 intents.message_content = True
 client: Client = Client(intents=intents)
 
+cookies_file = open("cookies-youtube-com.txt", "r")
+
 # YTDL OPTIONS
 ytdl_format_options = {
     'format': 'bestaudio/best',
@@ -26,7 +28,8 @@ ytdl_format_options = {
         'preferredcodec': 'mp3',
         'preferredquality': '192',
     }],
-    "cookies-from-browser": "firefox",
+    "extractor-args": "youtube:player-client=web,default;po_token=web+MltMMSIDghZKQkwJJ-aSWPNaIA1nyIokISzNkbP6QONWiP-uAIVLiEZ8fSh0exad2QBn8MYtgQDMbCS7aWosVt1J8JGyQpX2pPFVoOQYAEggxsjKMovmh3Gb7JUf",
+    "cookies": cookies_file.read(),
 }
 
 # USER DICTIONARY
