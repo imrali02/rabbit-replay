@@ -26,6 +26,7 @@ ytdl_format_options = {
         'preferredcodec': 'mp3',
         'preferredquality': '192',
     }],
+    "cookies-from-browser": "firefox",
 }
 
 # USER DICTIONARY
