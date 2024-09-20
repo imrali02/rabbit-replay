@@ -3,7 +3,7 @@ import os
 import discord
 from dotenv import load_dotenv
 from discord import Intents, Client, Message, VoiceClient
-import youtube_dl
+import yt_dlp as youtube_dl
 import threading
 import time
 import paho.mqtt.publish as publish
