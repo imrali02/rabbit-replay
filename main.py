@@ -28,7 +28,7 @@ ytdl_format_options = {
         'preferredcodec': 'mp3',
         'preferredquality': '192',
     }],
-    "extractor-args": "youtube:player-client=web,default;po_token=web+MltMMSIDghZKQkwJJ-aSWPNaIA1nyIokISzNkbP6QONWiP-uAIVLiEZ8fSh0exad2QBn8MYtgQDMbCS7aWosVt1J8JGyQpX2pPFVoOQYAEggxsjKMovmh3Gb7JUf",
+    "extractor-args": "youtube:player-client=web,default;po_token=" + os.getenv('PO_TOKEN'),
     "cookies": cookies_file.read(),
 }
 
