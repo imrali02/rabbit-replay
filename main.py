@@ -1,14 +1,18 @@
 from typing import Final
+from friend import Friend
 import os
-import discord
 from dotenv import load_dotenv
-from discord import Intents, Client, Message, VoiceClient
+from discord import Intents, VoiceClient
+from discord.ext import commands, tasks
 import yt_dlp as youtube_dl
 import threading
 import time
-import paho.mqtt.publish as publish
+import socket
+import select
+import asyncio
+import logging
 
-# LOAD OUR TOKEN FROM SOMEWHERE SAFE - testing git pull
+# LOAD ENV VARIABLES
 load_dotenv()
 TOKEN: Final[str] = os.getenv('DISCORD_TOKEN')
 MQTT_PASSWORD: Final[str] = os.getenv('MQTT_PASSWORD')
@@ -16,7 +20,9 @@ MQTT_PASSWORD: Final[str] = os.getenv('MQTT_PASSWORD')
 # BOT SETUP
 intents: Intents = Intents.default()
 intents.message_content = True
-client: Client = Client(intents=intents)
+
+# Create an instance of a bot with the new command prefix '!'
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 cookies_file = open("cookies-youtube-com.txt", "r")
 
@@ -48,97 +54,145 @@ voice_client: VoiceClient = None
 last_activity_time = None
 goon_users = set()
 is_gooning = False
+queue = []  # Queue to store song URLs
 
 # MAIN ENTRY POINT
 def main() -> None:
-    client.run(token=TOKEN)
-
-# Function to publish message to MQTT broker
-def trigger_buzzer(device_id):
-    global is_gooning
-    is_gooning = True  # Set is_gooning to True
-
-    # send message with device_id to MQTT broker
-    mqtt_password = MQTT_PASSWORD
-    publish.single("goon", device_id, hostname="167.99.49.73", port=1883, auth = {'username':"goon_user", 'password':"kurapikaisnowdrowning"})
-
-    is_gooning = False  # Set is_gooning back to False
-
-# New function to send "not gooning" message
-def send_not_gooning_message():
-    global is_gooning
-
-    while True:
-        time.sleep(5)  # Wait for 5 seconds
-
-        if not is_gooning:
-            # send "not gooning" message to MQTT broker
-            mqtt_password = MQTT_PASSWORD
-            publish.single("goon", "not gooning", hostname="167.99.49.73", port=1883, auth = {'username':"goon_user",
-                 'password':"kurapikaisnowdrowning"})
+    bot.run(token=TOKEN)
             
-# Trigger buzzers for all non-gooners
-def trigger_buzzers_for_all_devices(goon_users):
-    for user_id, device_id in user_dict.items():
-        if user_id not in goon_users:
-            trigger_buzzer(device_id)
+def trigger_buzzer(name):
+    for friend in client_list:
+        if friend.name == name:
+            friend.send_message("trigger alarm")
 
-# EVENT LISTENER
-@client.event
-async def on_message(message: Message) -> None:
-    global voice_client, last_activity_time, goon_users
+def trigger_buzzers_for_all_devices():
+    global client_list
+    for friend in client_list:
+        friend.send_message("trigger alarm")
 
-    if message.author == client.user:
-        return
+    # principally violates DRY but O(n) instead of O(n^2) my beloved           
 
-    if message.content.startswith('!play'):
-        voice_channel = message.author.voice.channel
-        if voice_channel:
+@bot.event
+async def on_ready():
+    logging.info(f'Logged in as {bot.user}')
+    inactivity_checker.start()
+
+@bot.command()
+async def join(ctx):
+    """Join the voice channel of the user who issued the command."""
+    global voice_client
+    if ctx.author.voice:
+        channel = ctx.author.voice.channel
+        if not voice_client or not voice_client.is_connected():
+            voice_client = await channel.connect()
+    else:
+        await ctx.send("You must be in a voice channel for me to join!")
+
+@bot.command()
+async def leave(ctx):
+    """Leave the current voice channel."""
+    global voice_client
+    if voice_client and voice_client.is_connected():
+        await voice_client.disconnect()
+        voice_client = None
+
+@bot.command()
+async def goon(ctx):
+    if len(ctx.content.split()) == 1:
+        if ctx.author.id not in goon_users:
+                goon_users.add(ctx.author.id)
+                await ctx.channel.send(
+                    f"{ctx.author.mention} has joined the gooning squad! {len(goon_users)}/2"
+                )
+
+                if len(goon_users) == 2:
+                    await ctx.channel.send("It's gooning time!")
+                    trigger_buzzers_for_all_devices()
+                    goon_users.clear()
+    else:
+        trigger_buzzer(ctx.content.split(" ", 1)[1])
+
+def start_server(ip, port):
+    server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_sock.setblocking(False)
+    server_sock.bind((ip, port))
+    server_sock.listen()
+    print(f"Server started at {ip}:{port}")
+    return server_sock
+
+def handshake(client_socket):
+    try:
+        client_socket.settimeout(5)
+        data = client_socket.recv(1024).decode()
+        client_socket.sendall(b"hello")
+        print("Handshake successful!")
+        return True, Friend(data, client_socket)
+    except socket.timeout:
+        print("Handshake timeout.")
+    except Exception as e:
+        print(f"Error during handshake: {e}")
+    return False, None
+
+async def manage_clients(server_sock, client_list):
+    while True:
+        ready_to_read, _, _ = select.select([server_sock], [], [], 0)
+        if ready_to_read:
             try:
-                if voice_client and voice_client.is_connected():
-                    await voice_client.move_to(voice_channel)
+                client_socket, client_address = server_sock.accept()
+                print(f"New connection from {client_address}")
+
+                success, to_add = handshake(client_socket)
+
+                if success:
+                    client_list.append(to_add)
                 else:
-                    voice_client = await voice_channel.connect()
-
-                url = message.content.split(' ', 1)[1]
-                with ytdl:
-                    info = ytdl.extract_info(url, download=False)
-                    url2 = info['formats'][0]['url']
-                voice_client.play(discord.FFmpegPCMAudio(url2))
+                    client_socket.close()
             except Exception as e:
-                print(e)
-                await message.channel.send("An error occurred while trying to play the video.")
-        else:
-            await message.channel.send("You need to be in a voice channel to use this command.")
+                print(f"Error accepting connection: {e}")
 
-        # Update last activity time
-        last_activity_time = time.time()
+        await asyncio.sleep(2)
+        print_client_list()
+        # prints all connected clients, not important if you can't/don't want to see terminal output
 
-    elif message.content.startswith('!stop'):
-        if voice_client and voice_client.is_playing():
-            voice_client.stop()
-            await message.channel.send("Playback stopped.")
-        else:
-            await message.channel.send("No video is currently playing.")
+async def prune_client_list(client_list):
+    while True:
 
-    elif message.content.startswith('!leave'):
-        if voice_client:
+        tasks = [friend.keep_alive(client_list) for friend in client_list]
+        await asyncio.gather(*tasks)
+
+        await asyncio.sleep(5)
+
+def print_client_list():
+    global client_list
+    # os.system("clear")
+    print("current friend list\n")
+    for friend in client_list:
+        print(friend)
+    print("\n\n\n\n\n")
+
+async def run_server(ip, port):
+    global client_list
+    server_sock = start_server(ip, port)
+
+    manage_task = asyncio.create_task(manage_clients(server_sock, client_list))
+    prune_task = asyncio.create_task(prune_client_list(client_list))
+
+    await asyncio.gather(manage_task, prune_task)
+
+@tasks.loop(seconds=10)
+async def inactivity_checker():
+    """Check for inactivity and disconnect if inactive for 5 minutes."""
+    global inactive_seconds, voice_client, is_playing
+
+    if voice_client and not is_playing and not queue:
+        inactive_seconds += 10
+        if inactive_seconds >= 300:  # 5 minutes
             await voice_client.disconnect()
             voice_client = None
-            await message.channel.send("Left the voice channel.")
-        else:
-            await message.channel.send("I'm not in a voice channel.")
+            inactive_seconds = 0
+            logging.info("Disconnected due to inactivity.")
+    else:
+        inactive_seconds = 0  # Reset inactivity timer if playing or queue is not empty
 
-    elif message.content.startswith('!goon'):
-        if message.author.id not in goon_users:
-            goon_users.add(message.author.id)
-            await message.channel.send(f"{message.author.mention} has joined the gooning squad! {len(goon_users)}/2")
-
-            if len(goon_users) == 2:
-                await message.channel.send("It's gooning time!")
-                trigger_buzzers_for_all_devices(goon_users)
-                goon_users.clear()
-
-if __name__ == '__main__':
-    threading.Thread(target=send_not_gooning_message).start()  # Start the "not gooning" message sender in a new thread
-    main()
+async def main():
+    await run_server("192.168.1.3", 42069)
