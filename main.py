@@ -136,4 +136,5 @@ def connect_to_server(ip, port):
 def main() -> None:
     connect_to_server(SERVER_IP, 42069)
     bot.run(token=TOKEN)
+    print("Bot started")
 
