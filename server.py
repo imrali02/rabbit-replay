@@ -13,6 +13,8 @@ goon_users = set()
 # LOAD ENV VARIABLES
 load_dotenv()
 SERVER_IP: Final[str] = os.getenv('SERVER_IP')
+if SERVER_IP is None:
+    raise ValueError("SERVER_IP environment variable is not set. Please create a .env file with SERVER_IP=your_ip_address")
 
 def trigger_buzzer(name):
     for friend in client_list:
@@ -44,7 +46,14 @@ def trigger_buzzers_for_all_devices():
 def start_server(ip, port):
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_sock.setblocking(False)
-    server_sock.bind((ip, port))
+    try:
+        server_sock.bind((ip, port))
+    except OSError as e:
+        if e.errno == 99:  # Cannot assign requested address
+            print(f"Warning: Could not bind to {ip}, falling back to 0.0.0.0")
+            server_sock.bind(('0.0.0.0', port))
+        else:
+            raise
     server_sock.listen()
     print(f"Server started at {ip}:{port}")
     return server_sock

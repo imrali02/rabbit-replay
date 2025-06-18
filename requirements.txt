@@ -1,3 +1,5 @@
 discord
 asyncio
 PyNaCl
+dotenv
+yt_dlp
