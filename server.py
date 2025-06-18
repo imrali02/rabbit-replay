@@ -82,20 +82,19 @@ def handshake(client_socket):
 
 def process_command(client_socket, data):
 
-    if data == "kurapikaisnow":
-        result = trigger_buzzers_for_all_devices()
-        client_socket.sendall(result.encode())
-        # clients will now close their connections. don't close the connection here because that puts server in TIME_WAIT and blocks new commands for 2xMSL seconds
-
-    elif data == "drowningin":
-        client_socket.sendall(b"present target")
-        target = client_socket.recv(1024).decode()
-        result = trigger_buzzer(target)
-        client_socket.sendall(result.encode())
-
-    else:
-        client_socket.sendall(get_client_string().encode())
-
+    match data:
+        case "kurapikaisnow":
+            result = trigger_buzzers_for_all_devices()
+            client_socket.sendall(result.encode())
+        case "drowningin":
+            client_socket.sendall(b"present target")
+            target = client_socket.recv(1024).decode()
+            result = trigger_buzzer(target) 
+            client_socket.sendall(result.encode())
+        case "indescribableemptiness":
+            client_socket.sendall(get_client_string().encode())
+        case _:
+            client_socket.sendall(b"invalid command")
 
 async def manage_clients(server_sock, client_list):
     while True:

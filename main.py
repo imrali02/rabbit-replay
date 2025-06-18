@@ -1,6 +1,6 @@
 from typing import Final
 from friend import Friend
-from bot_interface import send_command_all, send_command_list, send_command_single
+from bot_helper import send_command_all, send_command_list, send_command_single
 import os
 from dotenv import load_dotenv
 from discord import Intents, VoiceClient
@@ -18,6 +18,8 @@ load_dotenv()
 TOKEN: Final[str] = os.getenv('DISCORD_TOKEN')
 MQTT_PASSWORD: Final[str] = os.getenv('MQTT_PASSWORD')
 SERVER_IP: Final[str] = os.getenv('SERVER_IP')
+ip = SERVER_IP
+port = 42069
 
 # BOT SETUP
 intents: Intents = Intents.default()
@@ -107,21 +109,6 @@ async def inactivity_checker():
     else:
         inactive_seconds = 0  # Reset inactivity timer if playing or queue is not empty
 
-# retrieves a comma separated list of all connected signals. useful if youre wondering if it went off or not. why am i adding new features at this hour? i am sick. this is sickness. i do love sockets though.
-def send_command_list(ip, port):
-    try:
-        client_socket = connect_to_server(ip, port)
-        client_socket.sendall(b"indescribableemptiness")
-        response = client_socket.recv(1024).decode()
-        client_socket.close()
-        if response == "":
-            return "request failed"
-        else:
-            return response
-    except Exception as e:
-        return "request failed"
-
-
 # needed for the fns, irrelevant to you
 def connect_to_server(ip, port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -134,7 +121,7 @@ def connect_to_server(ip, port):
         return None
 
 if __name__ == "__main__":
-    connect_to_server(SERVER_IP, 42069)
+    connect_to_server(ip, port)
     bot.run(token=TOKEN)
     print("Bot started")
 
