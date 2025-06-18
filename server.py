@@ -1,13 +1,18 @@
+from typing import Final
 import socket
 import time
 import select
 import asyncio
+from dotenv import load_dotenv
 from friend import Friend
 import os
 
 client_list = []  # client list is global var now
 goon_users = set()
 
+# LOAD ENV VARIABLES
+load_dotenv()
+SERVER_IP: Final[str] = os.getenv('SERVER_IP')
 
 def trigger_buzzer(name):
     for friend in client_list:
@@ -140,7 +145,7 @@ async def run_server(ip, port):
 
 
 async def main():
-    await run_server("192.168.1.48", 42069)
+    await run_server(SERVER_IP, 42069)
 
 
 asyncio.run(main())
