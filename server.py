@@ -146,15 +146,38 @@ def get_client_string():
 async def run_server(ip, port):
     global client_list
     server_sock = start_server(ip, port)
+    print(f"Server socket created and bound to {ip}:{port}")
 
-    manage_task = asyncio.create_task(manage_clients(server_sock, client_list))
-    prune_task = asyncio.create_task(prune_client_list(client_list))
+    try:
+        manage_task = asyncio.create_task(manage_clients(server_sock, client_list))
+        prune_task = asyncio.create_task(prune_client_list(client_list))
 
-    await asyncio.gather(manage_task, prune_task)
+        # Keep the server running
+        while True:
+            await asyncio.sleep(1)
+            # Check if tasks are still running
+            if manage_task.done() or prune_task.done():
+                print("One of the server tasks has ended unexpectedly")
+                break
+
+    except Exception as e:
+        print(f"Error in run_server: {e}")
+    finally:
+        server_sock.close()
 
 
 async def main():
-    await run_server(SERVER_IP, 42069)
+    try:
+        print("Starting server...")
+        await run_server(SERVER_IP, 42069)
+    except KeyboardInterrupt:
+        print("\nShutting down server...")
+    except Exception as e:
+        print(f"Error running server: {e}")
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nServer stopped by user")
