@@ -17,6 +17,7 @@ import logging
 load_dotenv()
 TOKEN: Final[str] = os.getenv('DISCORD_TOKEN')
 MQTT_PASSWORD: Final[str] = os.getenv('MQTT_PASSWORD')
+SERVER_IP: Final[str] = os.getenv('SERVER_IP')
 
 # BOT SETUP
 intents: Intents = Intents.default()
@@ -133,6 +134,6 @@ def connect_to_server(ip, port):
         return None
 
 def main() -> None:
-    connect_to_server("192.168.1.3", 42069)
+    connect_to_server(SERVER_IP, 42069)
     bot.run(token=TOKEN)
 
