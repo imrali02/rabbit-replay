@@ -45,6 +45,10 @@ last_activity_time = None
 goon_users = set()
 is_gooning = False
 queue = []  # Queue to store song URLs
+is_playing = False  # Flag to track if a song is currently playing
+downloaded_files = []  # List to track downloaded MP3 files
+inactive_seconds = 0  # Counter for inactivity time
+DOWNLOAD_DIR = "downloads"  # Directory to store downloaded MP3 files
         
 @bot.event
 async def on_ready():
