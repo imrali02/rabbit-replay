@@ -1,8 +1,4 @@
-# for imran: these fns are how the bot interfaces with the server. this is all the bot needs and they should
-# work out of the box with just ip/port combos.
-# you should populate the discord msg event handler with these functions whenever a command is needed.
 import socket
-
 
 def send_command_all(ip, port):
     try:
