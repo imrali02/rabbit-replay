@@ -1,5 +1,4 @@
-discord
-asyncio
+discord.py>=2.0.0
 PyNaCl
-dotenv
+python-dotenv
 yt_dlp

@@ -3,6 +3,7 @@ from friend import Friend
 from bot_helper import send_command_all, send_command_list, send_command_single
 import os
 from dotenv import load_dotenv
+import discord
 from discord import Intents, VoiceClient
 from discord.ext import commands, tasks
 import yt_dlp as youtube_dl
@@ -27,7 +28,7 @@ port = 42069
 intents: Intents = Intents.default()
 intents.message_content = True
 
-# Create an instance of a bot with the new command prefix '!'
+# Create an instance of a bot (we'll register application/slash commands on the bot's tree)
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # USER DICTIONARY
@@ -53,36 +54,51 @@ DOWNLOAD_DIR = "downloads"  # Directory to store downloaded MP3 files
 @bot.event
 async def on_ready():
     logging.info(f'Logged in as {bot.user}')
+    # Sync application (slash) commands to Discord
+    try:
+        await bot.tree.sync()
+        logging.info("Command tree synced")
+    except Exception as e:
+        logging.error(f"Failed to sync command tree: {e}")
     inactivity_checker.start()
 
-@bot.command()
-async def p(ctx, url: str):
-    """Add a song to the queue and play it."""
-    global queue, is_playing
+@bot.tree.command(name="p", description="Add a song to the queue and play it.")
+async def p(interaction: discord.Interaction, url: str):
+    """Add a song to the queue and play it (slash command).
 
-    # Ensure the bot is in a voice channel
-    if not ctx.author.voice:
-        await ctx.send("You must be in a voice channel for me to play music!")
+    This command defers the interaction and uses followups for messages.
+    """
+    await interaction.response.defer()
+    global queue, is_playing, voice_client
+
+    # Ensure the user is in a voice channel
+    if not interaction.user or not getattr(interaction.user, "voice", None):
+        await interaction.followup.send("You must be in a voice channel for me to play music!")
         return
+
+    # Connect to the user's voice channel if not connected
     if not voice_client or not voice_client.is_connected():
-        await join(ctx)
+        channel = interaction.user.voice.channel
+        voice_client = await channel.connect()
 
     # Add the song to the queue
     queue.append(url)
 
     # Start playback if not already playing
     if not is_playing:
-        await play_next(ctx)
+        await play_next(interaction.channel)
+    await interaction.followup.send(f"Queued: {url}")
 
-@bot.command()
-async def s(ctx):
-    """Stop playback and clear the queue."""
+@bot.tree.command(name="stop", description="Stop playback and clear the queue.")
+async def s(interaction: discord.Interaction):
+    """Stop playback and clear the queue (slash command)."""
+    await interaction.response.defer()
     global voice_client, queue, is_playing, downloaded_files
 
     if voice_client and voice_client.is_playing():
         voice_client.stop()  # Stop playing audio
     else:
-        await ctx.send("The bot is not playing anything.")
+        await interaction.followup.send("The bot is not playing anything.")
 
     # Clear the queue, reset playback state, and delete downloaded files
     queue.clear()
@@ -93,20 +109,23 @@ async def s(ctx):
         if os.path.exists(file):
             os.remove(file)
     downloaded_files.clear()
+    await interaction.followup.send("Stopped and cleared queue.")
 
-@bot.command()
-async def skip(ctx):
-    """Skip the current song and move to the next."""
+@bot.tree.command(name="skip", description="Skip the current song and move to the next.")
+async def skip(interaction: discord.Interaction):
+    """Skip the current song and move to the next (slash command)."""
+    await interaction.response.defer()
     global voice_client
 
     if voice_client and voice_client.is_playing():
         voice_client.stop()  # Stop the current song
-        await play_next(ctx)  # Immediately move to the next song in the queue
+        await play_next(interaction.channel)  # Immediately move to the next song in the queue
+        await interaction.followup.send("Skipped.")
     else:
-        await ctx.send("There is no song playing to skip.")
+        await interaction.followup.send("There is no song playing to skip.")
 
-async def play_next(ctx):
-    """Play the next song in the queue."""
+async def play_next(channel):
+    """Play the next song in the queue. 'channel' should be a TextChannel-like object used for sending messages."""
     global queue, is_playing, voice_client, downloaded_files
 
     if not queue:
@@ -121,9 +140,12 @@ async def play_next(ctx):
     # Download the MP3 file
     mp3_file = await download_mp3(url)
     if not mp3_file:
-        await ctx.send(f"Failed to download audio: {url}")
+        try:
+            await channel.send(f"Failed to download audio: {url}")
+        except Exception:
+            logging.exception("Failed to notify channel about download failure")
         is_playing = False
-        await play_next(ctx)  # Skip to the next song
+        await play_next(channel)  # Skip to the next song
         return
 
     # Keep track of the downloaded file
@@ -132,7 +154,7 @@ async def play_next(ctx):
     # Play the MP3 file in the voice channel
     try:
         def after_playing(e):
-            coro = play_next(ctx)
+            coro = play_next(channel)
             fut = asyncio.run_coroutine_threadsafe(coro, bot.loop)
             try:
                 fut.result()
@@ -144,7 +166,7 @@ async def play_next(ctx):
     except Exception as e:
         logging.error(f"Error during playback: {e}")
         is_playing = False
-        await play_next(ctx)
+        await play_next(channel)
 
 async def download_mp3(url: str):
     """Download the MP3 from the provided YouTube URL using yt-dlp CLI."""
@@ -177,50 +199,59 @@ async def download_mp3(url: str):
         logging.error(f"Error downloading audio: {e}")
         return None
 
-@bot.command()
-async def join(ctx):
-    """Join the voice channel of the user who issued the command."""
+@bot.tree.command(name="join", description="Have the bot join your voice channel.")
+async def join(interaction: discord.Interaction):
+    """Join the voice channel of the user who issued the command (slash command)."""
+    await interaction.response.defer()
     global voice_client
-    if ctx.author.voice:
-        channel = ctx.author.voice.channel
+    if interaction.user and getattr(interaction.user, "voice", None):
+        channel = interaction.user.voice.channel
         if not voice_client or not voice_client.is_connected():
             voice_client = await channel.connect()
+        await interaction.followup.send(f"Joined {channel}")
     else:
-        await ctx.send("You must be in a voice channel for me to join!")
+        await interaction.followup.send("You must be in a voice channel for me to join!")
 
-@bot.command()
-async def leave(ctx):
-    """Leave the current voice channel."""
+@bot.tree.command(name="leave", description="Make the bot leave the voice channel.")
+async def leave(interaction: discord.Interaction):
+    """Leave the current voice channel (slash command)."""
+    await interaction.response.defer()
     global voice_client
     if voice_client and voice_client.is_connected():
         await voice_client.disconnect()
         voice_client = None
+        await interaction.followup.send("Left the voice channel.")
+    else:
+        await interaction.followup.send("I'm not in a voice channel.")
 
-@bot.command()
-async def goon(ctx):
-    if ctx.author.id not in goon_users:
-        goon_users.add(ctx.author.id)
-        await ctx.channel.send(
-            f"{ctx.author.mention} has joined the gooning squad! {len(goon_users)}/2"
+@bot.tree.command(name="goon", description="Join the gooning squad.")
+async def goon(interaction: discord.Interaction):
+    await interaction.response.defer()
+    if interaction.user.id not in goon_users:
+        goon_users.add(interaction.user.id)
+        await interaction.followup.send(
+            f"{interaction.user.mention} has joined the gooning squad! {len(goon_users)}/2"
         )
 
         if len(goon_users) == 2:
-            await ctx.channel.send("It's gooning time!")
+            await interaction.channel.send("It's gooning time!")
             results = send_command_all(ip, port)
             goon_users.clear()
-            await ctx.channel.send(results)
+            await interaction.channel.send(results)
 
-@bot.command()
-async def goon_target(ctx, target: str):
-    await ctx.send(f"sending the goons after {target}")
+@bot.tree.command(name="goon_target", description="Send goons after a target.")
+async def goon_target(interaction: discord.Interaction, target: str):
+    await interaction.response.defer()
+    await interaction.followup.send(f"sending the goons after {target}")
     result = send_command_single(ip, port, target)
-    await ctx.send(result)
+    await interaction.followup.send(result)
 
 
-@bot.command()
-async def goon_list(ctx):
+@bot.tree.command(name="goon_list", description="Ask server for goon targets list.")
+async def goon_list(interaction: discord.Interaction):
+    await interaction.response.defer()
     result = send_command_list(ip, port)
-    await ctx.send(result)
+    await interaction.followup.send(result)
 
 @tasks.loop(seconds=10)
 async def inactivity_checker():
