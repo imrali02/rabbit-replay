@@ -4,7 +4,7 @@ from bot_helper import send_command_all, send_command_list, send_command_single
 import os
 from dotenv import load_dotenv
 import discord
-from discord import Intents, VoiceClient
+from discord import Intents, VoiceClient, app_commands
 from discord.ext import commands, tasks
 import yt_dlp as youtube_dl
 import threading
@@ -27,9 +27,8 @@ port = 42069
 # BOT SETUP
 intents: Intents = Intents.default()
 intents.message_content = True
-
-# Create an instance of a bot (we'll register application/slash commands on the bot's tree)
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(intents=intents)
+tree = app_commands.CommandTree(bot)
 
 # USER DICTIONARY
 user_dict = {
@@ -62,7 +61,7 @@ async def on_ready():
         logging.error(f"Failed to sync command tree: {e}")
     inactivity_checker.start()
 
-@bot.tree.command(name="p", description="Add a song to the queue and play it.")
+@tree.command(name="play", description="Add a song to the queue and play it.")
 async def p(interaction: discord.Interaction, url: str):
     """Add a song to the queue and play it (slash command).
 
@@ -89,7 +88,7 @@ async def p(interaction: discord.Interaction, url: str):
         await play_next(interaction.channel)
     await interaction.followup.send(f"Queued: {url}")
 
-@bot.tree.command(name="stop", description="Stop playback and clear the queue.")
+@tree.command(name="stop", description="Stop playback and clear the queue.")
 async def s(interaction: discord.Interaction):
     """Stop playback and clear the queue (slash command)."""
     await interaction.response.defer()
@@ -111,7 +110,7 @@ async def s(interaction: discord.Interaction):
     downloaded_files.clear()
     await interaction.followup.send("Stopped and cleared queue.")
 
-@bot.tree.command(name="skip", description="Skip the current song and move to the next.")
+@tree.command(name="skip", description="Skip the current song and move to the next.")
 async def skip(interaction: discord.Interaction):
     """Skip the current song and move to the next (slash command)."""
     await interaction.response.defer()
@@ -199,32 +198,7 @@ async def download_mp3(url: str):
         logging.error(f"Error downloading audio: {e}")
         return None
 
-@bot.tree.command(name="join", description="Have the bot join your voice channel.")
-async def join(interaction: discord.Interaction):
-    """Join the voice channel of the user who issued the command (slash command)."""
-    await interaction.response.defer()
-    global voice_client
-    if interaction.user and getattr(interaction.user, "voice", None):
-        channel = interaction.user.voice.channel
-        if not voice_client or not voice_client.is_connected():
-            voice_client = await channel.connect()
-        await interaction.followup.send(f"Joined {channel}")
-    else:
-        await interaction.followup.send("You must be in a voice channel for me to join!")
-
-@bot.tree.command(name="leave", description="Make the bot leave the voice channel.")
-async def leave(interaction: discord.Interaction):
-    """Leave the current voice channel (slash command)."""
-    await interaction.response.defer()
-    global voice_client
-    if voice_client and voice_client.is_connected():
-        await voice_client.disconnect()
-        voice_client = None
-        await interaction.followup.send("Left the voice channel.")
-    else:
-        await interaction.followup.send("I'm not in a voice channel.")
-
-@bot.tree.command(name="goon", description="Join the gooning squad.")
+@tree.command(name="goon", description="Join the gooning squad.")
 async def goon(interaction: discord.Interaction):
     await interaction.response.defer()
     if interaction.user.id not in goon_users:
@@ -239,7 +213,7 @@ async def goon(interaction: discord.Interaction):
             goon_users.clear()
             await interaction.channel.send(results)
 
-@bot.tree.command(name="goon_target", description="Send goons after a target.")
+@tree.command(name="goon_target", description="Send goons after a target.")
 async def goon_target(interaction: discord.Interaction, target: str):
     await interaction.response.defer()
     await interaction.followup.send(f"sending the goons after {target}")
@@ -247,7 +221,7 @@ async def goon_target(interaction: discord.Interaction, target: str):
     await interaction.followup.send(result)
 
 
-@bot.tree.command(name="goon_list", description="Ask server for goon targets list.")
+@tree.command(name="goon_list", description="Ask server for goon targets list.")
 async def goon_list(interaction: discord.Interaction):
     await interaction.response.defer()
     result = send_command_list(ip, port)
