@@ -5,7 +5,6 @@ import os
 from dotenv import load_dotenv
 import discord
 from discord import Intents, VoiceClient, app_commands
-from discord.ext import commands, tasks
 import yt_dlp as youtube_dl
 import threading
 import time
@@ -27,7 +26,7 @@ port = 42069
 # BOT SETUP
 intents: Intents = Intents.default()
 intents.message_content = True
-bot = commands.Bot(intents=intents)
+bot = discord.Client(intents=intents)
 tree = app_commands.CommandTree(bot)
 
 # USER DICTIONARY
@@ -53,17 +52,15 @@ DOWNLOAD_DIR = "downloads"  # Directory to store downloaded MP3 files
 @bot.event
 async def on_ready():
     logging.info(f'Logged in as {bot.user}')
-    # Sync application (slash) commands to Discord
     try:
-        await bot.tree.sync()
+        await tree.sync()
         logging.info("Command tree synced")
     except Exception as e:
         logging.error(f"Failed to sync command tree: {e}")
-    inactivity_checker.start()
 
 @tree.command(name="play", description="Add a song to the queue and play it.")
 async def p(interaction: discord.Interaction, url: str):
-    """Add a song to the queue and play it (slash command).
+    """Add a song to the queue and play it.
 
     This command defers the interaction and uses followups for messages.
     """
@@ -99,7 +96,6 @@ async def s(interaction: discord.Interaction):
     else:
         await interaction.followup.send("The bot is not playing anything.")
 
-    # Clear the queue, reset playback state, and delete downloaded files
     queue.clear()
     is_playing = False
 
@@ -112,7 +108,7 @@ async def s(interaction: discord.Interaction):
 
 @tree.command(name="skip", description="Skip the current song and move to the next.")
 async def skip(interaction: discord.Interaction):
-    """Skip the current song and move to the next (slash command)."""
+    """Skip the current song and move to the next"""
     await interaction.response.defer()
     global voice_client
 
@@ -168,7 +164,6 @@ async def play_next(channel):
         await play_next(channel)
 
 async def download_mp3(url: str):
-    """Download the MP3 from the provided YouTube URL using yt-dlp CLI."""
     try:
         # Generate a unique file name for the MP3 based on the URL
         file_hash = hashlib.md5(url.encode()).hexdigest()
@@ -198,6 +193,7 @@ async def download_mp3(url: str):
         logging.error(f"Error downloading audio: {e}")
         return None
 
+# goon commands
 @tree.command(name="goon", description="Join the gooning squad.")
 async def goon(interaction: discord.Interaction):
     await interaction.response.defer()
@@ -220,29 +216,12 @@ async def goon_target(interaction: discord.Interaction, target: str):
     result = send_command_single(ip, port, target)
     await interaction.followup.send(result)
 
-
 @tree.command(name="goon_list", description="Ask server for goon targets list.")
 async def goon_list(interaction: discord.Interaction):
     await interaction.response.defer()
     result = send_command_list(ip, port)
     await interaction.followup.send(result)
 
-@tasks.loop(seconds=10)
-async def inactivity_checker():
-    """Check for inactivity and disconnect if inactive for 5 minutes."""
-    global inactive_seconds, voice_client, is_playing
-
-    if voice_client and not is_playing and not queue:
-        inactive_seconds += 10
-        if inactive_seconds >= 300:  # 5 minutes
-            await voice_client.disconnect()
-            voice_client = None
-            inactive_seconds = 0
-            logging.info("Disconnected due to inactivity.")
-    else:
-        inactive_seconds = 0  # Reset inactivity timer if playing or queue is not empty
-
-# needed for the fns, irrelevant to you
 def connect_to_server(ip, port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
