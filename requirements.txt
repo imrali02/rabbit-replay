@@ -1,5 +1,6 @@
-discord.py>=2.0.0
+discord.py[voice]>=2.0.0
 PyNaCl
+davey
 python-dotenv
 yt-dlp>=2026.1.1
 aiohttp

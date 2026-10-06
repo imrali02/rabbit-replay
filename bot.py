@@ -8,7 +8,8 @@ import asyncio
 import aiohttp
 import discord
 import yt_dlp
-from discord.ext import commands, tasks
+from discord import app_commands
+from discord.ext import tasks
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
@@ -18,10 +19,19 @@ token = os.getenv("DISCORD_TOKEN")
 if not token:
     raise ValueError("DISCORD_TOKEN environment variable is not set!")
 
-intents = discord.Intents.default()
-intents.message_content = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+class MusicBot(discord.Client):
+    def __init__(self):
+        super().__init__(intents=discord.Intents.default())
+        self.tree = app_commands.CommandTree(self)
+
+    async def setup_hook(self):
+        # Register slash commands with Discord
+        synced = await self.tree.sync()
+        logging.info(f"Synced {len(synced)} slash commands.")
+
+
+bot = MusicBot()
 
 # Global (single-guild) playback state
 voice_client: discord.VoiceClient = None
@@ -39,6 +49,8 @@ YDL_OPTS = {
     "quiet": True,
     "no_warnings": True,
     "socket_timeout": 10,
+    # YouTube extraction needs a JS runtime; yt-dlp only enables deno by default
+    "js_runtimes": {"node": {}},
 }
 if os.path.exists("cookies.txt"):
     YDL_OPTS["cookiefile"] = "cookies.txt"
@@ -113,82 +125,103 @@ async def on_ready():
         inactivity_checker.start()
 
 
-@bot.command()
-async def join(ctx):
-    """Join the voice channel of the user who issued the command."""
+async def connect_to_author(interaction: discord.Interaction) -> bool:
+    """Connect to the invoking user's voice channel if not already connected."""
     global voice_client
-    if ctx.author.voice:
-        channel = ctx.author.voice.channel
-        if not voice_client or not voice_client.is_connected():
-            voice_client = await channel.connect()
+    if not interaction.user.voice:
+        return False
+    if not voice_client or not voice_client.is_connected():
+        voice_client = await interaction.user.voice.channel.connect()
+    return True
+
+
+@bot.tree.command()
+@app_commands.guild_only()
+async def join(interaction: discord.Interaction):
+    """Join your voice channel."""
+    await interaction.response.defer()
+    if await connect_to_author(interaction):
+        await interaction.followup.send(f"Joined {voice_client.channel.mention}.")
     else:
-        await ctx.send("You must be in a voice channel for me to join!")
+        await interaction.followup.send("You must be in a voice channel for me to join!")
 
 
-@bot.command()
-async def leave(ctx):
-    """Leave the current voice channel."""
+@bot.tree.command()
+@app_commands.guild_only()
+async def leave(interaction: discord.Interaction):
+    """Leave the voice channel and clear the queue."""
     global voice_client, queue, is_playing
     if voice_client and voice_client.is_connected():
         await voice_client.disconnect()
+        await interaction.response.send_message("Left the voice channel.")
+    else:
+        await interaction.response.send_message("I'm not in a voice channel.", ephemeral=True)
     voice_client = None
     queue.clear()
     is_playing = False
 
 
-@bot.command(aliases=["play"])
-async def p(ctx, *, query: str):
+@bot.tree.command()
+@app_commands.guild_only()
+@app_commands.describe(query="YouTube URL, Spotify track URL, or search keywords")
+async def play(interaction: discord.Interaction, query: str):
     """Queue and play a YouTube URL, a Spotify track URL, or search keywords."""
-    global queue, is_playing, voice_client
+    global queue, is_playing
 
-    if not ctx.author.voice:
-        await ctx.send("You must be in a voice channel for me to play music!")
+    if not interaction.user.voice:
+        await interaction.response.send_message(
+            "You must be in a voice channel for me to play music!", ephemeral=True
+        )
         return
-    if not voice_client or not voice_client.is_connected():
-        await join(ctx)
-        if not voice_client:
-            return
 
-    async with ctx.typing():
-        try:
-            track = await resolve_track(query)
-        except Exception as e:
-            logging.error(f"Failed to resolve '{query}': {e}")
-            await ctx.send(f"Couldn't find that: {e}")
-            return
+    # Resolving can take longer than Discord's 3s reply window
+    await interaction.response.defer(thinking=True)
+
+    await connect_to_author(interaction)
+
+    try:
+        track = await resolve_track(query)
+    except Exception as e:
+        logging.error(f"Failed to resolve '{query}': {e}")
+        await interaction.followup.send(f"Couldn't find that: {e}")
+        return
 
     queue.append(track)
-    await ctx.send(f"Queued: {track['title']}")
+    await interaction.followup.send(f"Queued: {track['title']}")
 
     if not is_playing:
-        await play_next(ctx)
+        await play_next(interaction.channel)
 
 
-@bot.command()
-async def s(ctx):
+@bot.tree.command()
+@app_commands.guild_only()
+async def stop(interaction: discord.Interaction):
     """Stop playback and clear the queue."""
-    global voice_client, queue, is_playing
+    global queue, is_playing
 
+    # Clear the queue first so the after_playing callback has nothing to advance to
+    queue.clear()
     if voice_client and voice_client.is_playing():
         voice_client.stop()
+        await interaction.response.send_message("Stopped and cleared the queue.")
     else:
-        await ctx.send("The bot is not playing anything.")
+        await interaction.response.send_message("The bot is not playing anything.", ephemeral=True)
 
-    queue.clear()
     is_playing = False
 
 
-@bot.command()
-async def skip(ctx):
+@bot.tree.command()
+@app_commands.guild_only()
+async def skip(interaction: discord.Interaction):
     """Skip the current song and move to the next."""
     if voice_client and voice_client.is_playing():
         voice_client.stop()  # after_playing callback advances the queue
-        await ctx.send("Skipped.")
+        await interaction.response.send_message("Skipped.")
     else:
-        await ctx.send("There is no song playing to skip.")
+        await interaction.response.send_message("There is no song playing to skip.", ephemeral=True)
 
 
-async def play_next(ctx):
+async def play_next(channel: discord.abc.Messageable):
     """Play the next song in the queue."""
     global queue, is_playing, voice_client
 
@@ -202,7 +235,7 @@ async def play_next(ctx):
     def after_playing(error):
         if error:
             logging.error(f"Playback error: {error}")
-        coro = play_next(ctx)
+        coro = play_next(channel)
         fut = asyncio.run_coroutine_threadsafe(coro, bot.loop)
         try:
             fut.result()
@@ -214,11 +247,11 @@ async def play_next(ctx):
             track["url"], before_options=FFMPEG_BEFORE_OPTIONS, options=FFMPEG_OPTIONS
         )
         voice_client.play(source, after=after_playing)
-        await ctx.send(f"Now playing: {track['title']}")
+        await channel.send(f"Now playing: {track['title']}")
     except Exception as e:
         logging.error(f"Error starting playback of '{track['title']}': {e}")
-        await ctx.send(f"Failed to play: {track['title']}")
-        await play_next(ctx)
+        await channel.send(f"Failed to play: {track['title']}")
+        await play_next(channel)
 
 
 @tasks.loop(seconds=10)
